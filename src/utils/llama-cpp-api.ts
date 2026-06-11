@@ -22,6 +22,30 @@ export function buildAPIURL(baseURL: string, endpoint: string = LLAMA_CPP_MODELS
     return `${normalized}${endpoint}`
 }
 
+export function getLlamaCppModelContextSize(model: LlamaCppModel): number | undefined {
+    const metaContext = model.meta?.n_ctx
+    if (typeof metaContext === 'number' && Number.isFinite(metaContext) && metaContext > 0) {
+        return metaContext
+    }
+
+    const args = model.status?.args
+    if (!Array.isArray(args)) {
+        return undefined
+    }
+
+    const ctxSizeIndex = args.indexOf('--ctx-size')
+    if (ctxSizeIndex === -1 || ctxSizeIndex + 1 >= args.length) {
+        return undefined
+    }
+
+    const parsed = Number.parseInt(args[ctxSizeIndex + 1], 10)
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed
+    }
+
+    return undefined
+}
+
 // Check if llama.cpp is accessible
 export async function checkLlamaCppHealth(baseURL: string = DEFAULT_LLAMA_CPP_URL): Promise<boolean> {
     try {

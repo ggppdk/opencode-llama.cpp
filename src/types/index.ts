@@ -4,6 +4,18 @@ export interface LlamaCppModel {
     object: string
     created: number
     owned_by: string
+    architecture?: {
+        input_modalities?: string[]
+        output_modalities?: string[]
+    }
+    meta?: {
+        n_ctx?: number
+        [key: string]: unknown
+    }
+    status?: {
+        args?: string[]
+        [key: string]: unknown
+    }
 }
 
 export interface LlamaCppModelsResponse {

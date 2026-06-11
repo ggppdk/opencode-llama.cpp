@@ -1,7 +1,7 @@
 import {ModelStatusCache} from '../cache/model-status-cache'
 import {ToastNotifier} from '../ui/toast-notifier'
 import {categorizeModel, extractModelOwner, formatModelName} from '../utils'
-import {autoDetectLlamaCpp, checkLlamaCppHealth, discoverLlamaCppModels, normalizeBaseURL} from '../utils/llama-cpp-api'
+import {autoDetectLlamaCpp, checkLlamaCppHealth, discoverLlamaCppModels, getLlamaCppModelContextSize, normalizeBaseURL} from '../utils/llama-cpp-api'
 import {getLlamaCppProviderEntries} from '../utils/validation'
 import type {PluginInput} from '@opencode-ai/plugin'
 import type {LlamaCppModel} from '../types'
@@ -74,6 +74,10 @@ export async function enhanceConfig(
                         modelKey = model.id.replace(/[^a-zA-Z0-9_-]/g, "_")
                     }
 
+                    const contextSize = getLlamaCppModelContextSize(model)
+                    const inputModalities = model.architecture?.input_modalities || ["text"]
+                    const outputModalities = model.architecture?.output_modalities || ["text"]
+
                     // Only add if not already configured
                     if (!existingModels[modelKey] && !existingModels[model.id]) {
                         const modelType = categorizeModel(model.id)
@@ -81,6 +85,10 @@ export async function enhanceConfig(
                         const modelConfig: any = {
                             id: model.id,
                             name: formatModelName(model),
+                            modalities: {
+                                input: inputModalities,
+                                output: outputModalities
+                            },
                         }
 
                         // Add owner if available
@@ -91,19 +99,39 @@ export async function enhanceConfig(
                         // Add additional metadata based on model type
                         if (modelType === 'embedding') {
                             embeddingModelsCount++
-                            modelConfig.modalities = {
-                                input: ["text"],
-                                output: ["embedding"]
-                            }
                         } else if (modelType === 'chat') {
                             chatModelsCount++
-                            modelConfig.modalities = {
-                                input: ["text", "image"],
-                                output: ["text"]
+                        }
+
+                        if (contextSize) {
+                            modelConfig.limit = {
+                                context: contextSize,
                             }
                         }
 
                         discoveredModels[modelKey] = modelConfig
+                    } else {
+                        const existingModelKey = existingModels[modelKey] ? modelKey : model.id
+                        const existingModel = existingModels[existingModelKey]
+                        if (existingModel) {
+                            const nextModel = {...existingModel}
+
+                            if (contextSize && !existingModel.limit?.context) {
+                                nextModel.limit = {
+                                    ...existingModel.limit,
+                                    context: contextSize,
+                                }
+                            }
+
+                            if (!existingModel.modalities?.input || !existingModel.modalities?.output) {
+                                nextModel.modalities = {
+                                    input: existingModel.modalities?.input || inputModalities,
+                                    output: existingModel.modalities?.output || outputModalities,
+                                }
+                            }
+
+                            existingModels[existingModelKey] = nextModel
+                        }
                     }
                 }
 
